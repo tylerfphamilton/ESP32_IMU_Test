@@ -65,8 +65,17 @@ void app_main(void) {
         struct bmi2_sens_axes_data acc, gyr;
         rslt = bmi270_esp_read_ag(&dev, &acc, &gyr);
 
+        float ax = (float) (acc.x / (32768.0f / 4.0f));
+        float ay = (float) (acc.y / (32768.0f / 4.0f));
+        float az = (float) (acc.z / (32768.0f / 4.0f));
+
+        float gx = (float) (gyr.x / (32768.0f / 2000.0f));
+        float gy = (float) (gyr.y / (32768.0f / 2000.0f));
+        float gz = (float) (gyr.z / (32768.0f / 2000.0f));
+
+        // g = m/s^2 and dps = degrees per second
         if (rslt == BMI2_OK) {
-            ESP_LOGI(TAG, "ACC: x=%d y=%d z=%d | GYR: x=%d y=%d z=%d", acc.x, acc.y, acc.z, gyr.x, gyr.y, gyr.z);
+            ESP_LOGI(TAG, "ACC: x=%.2fg y=%.2fg z=%.2fg | GYR: x=%.2fdps y=%.2fdps z=%.2fdps", ax, ay, az, gx, gy, gz);
         }
         else {
             ESP_LOGE(TAG, "Read failed: %d", rslt);
