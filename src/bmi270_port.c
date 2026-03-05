@@ -74,7 +74,7 @@ int8_t bmi270_esp_init(bmi270_i2c_ctx_t *ctx, struct bmi2_dev *dev) {
     cfg[1].cfg.gyr.odr = BMI2_GYR_ODR_100HZ;
     cfg[1].cfg.gyr.range = BMI2_GYR_RANGE_2000;
     cfg[1].cfg.gyr.bwp = BMI2_GYR_OSR2_MODE;     // bandwidth / filter
-    cfg[1].cfg.gyr.filter_perf = BMI2_PERF_OPT_MODE;
+    cfg[1].cfg.gyr.filter_perf = BMI2_GYR_OSR4_MODE;
 
     rslt = bmi2_set_sensor_config(cfg, 2, dev);
     if (rslt != BMI2_OK) return rslt;
