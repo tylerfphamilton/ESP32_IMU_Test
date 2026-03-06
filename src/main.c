@@ -55,26 +55,25 @@ typedef struct {
 static void get_direction_and_speed(float roll, float pitch, mapping_t *map){
 
     // checking for direction and setting type in mapping_t struct
-    // TODO: emaill UCLA
     
     // converting to degrees
     float roll_deg = roll * (180 / M_PI);
     float pitch_deg = pitch * (180 / M_PI);
 
-    if (pitch_deg < 0){
+    if (pitch_deg < 0.0f){
         map->pitch_dir = FORWARDS;
     }
-    else if (pitch_deg > 0){
+    else if (pitch_deg > 0.0f){
         map->pitch_dir = BACKWARDS;
     }
     else {
         map->pitch_dir = PITCH_STOPPED;
     }
 
-    if (roll_deg < 0){
+    if (roll_deg < 0.f){
         map->roll_dir = LEFT;
     }
-    else if (roll_deg > 0){
+    else if (roll_deg > 0.0f){
         map->roll_dir = RIGHT;
     }
     else {
@@ -92,6 +91,9 @@ static void get_direction_and_speed(float roll, float pitch, mapping_t *map){
     // checking for speed and setting type in mapping_t struct
     if (rotational_movement < 10.00){
         map->speed = DEADZONE;
+        map->pitch_dir = PITCH_STOPPED;
+        map->roll_dir = ROLL_STOPPED;
+        return;   
     }
     else if (rotational_movement < 20.00){
         map->speed = SLOW;
@@ -186,8 +188,6 @@ void app_main(void) {
 
     ESP_LOGI(IMU_TAG, "BMI270 init result: %d", rslt);
 
-
-
     float ax, ay, az;
     float gx, gy, gz;
     float roll, pitch, yaw;
@@ -218,14 +218,14 @@ void app_main(void) {
             ESP_LOGI(IMU_TAG, "ACC: x=%.2fg y=%.2fg z=%.2fg | GYR: x=%.2fdps y=%.2fdps z=%.2fdps", ax, ay, az, gx, gy, gz);
 
             if (init_flag_acc && fabsf(az) > 0.1f){
-                kalman_init(ax, ay, az);
+                kalman_init(ax, ay, -az);       // negating az
                 init_flag_acc = false;
             }
             else if (!init_flag_acc){
 
                 //
                 delta_dt = (float) (end_dt - start_dt) / 1000000.0f;
-                kalman_update(ax, ay, az, gx, gy, gz, delta_dt);
+                kalman_update(ax, ay, -az, gx, gy, gz, delta_dt);       // negating az
                 kalman_get_attitude(&roll, &pitch, &yaw);
 
                 //
