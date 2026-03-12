@@ -24,7 +24,7 @@
 // defines for changing the frequency on a button press
 static volatile int64_t last_pressed_time = 0;
 #define DEBOUNCE_MS 100
-static const int freq[] = {100,500};
+static const int freq[] = {100,333};
 static const int freq_count = 2;
 static volatile int freq_index = 0;
 
@@ -56,7 +56,8 @@ typedef enum {
 } ROLL_DIRECTION;
 
 typedef struct {
-    SPEED speed;
+    SPEED tilt_speed;
+    SPEED motion_speed;
     PITCH_DIRECTION pitch_dir;
     ROLL_DIRECTION roll_dir;
     float rotational_movement;
@@ -72,8 +73,13 @@ static void IRAM_ATTR button_isr_handler(void *arg) {
     }
 }
 
+// function for calculating distance moved based on ax, ay, az, and dt
+double magnitude_distance(float ax, float ay, float az, float dt){
+    return sqrt((double)((ax*ax) + (ay*ay) + (az*az)));
+}
+
 // Functionality for getting the pitch and roll
-static void get_direction_and_speed(float roll, float pitch, mapping_t *map){
+static void get_direction_and_speed(float roll, float pitch, double mag_dist, mapping_t *map){
     
     // converting to degrees
     float roll_deg = roll * (180 / M_PI);
@@ -107,26 +113,38 @@ static void get_direction_and_speed(float roll, float pitch, mapping_t *map){
     float rotational_movement = ((abs_pitch_deg > abs_roll_deg) ? abs_pitch_deg : abs_roll_deg);
     map->rotational_movement = rotational_movement;
 
-    // checking for speed and setting type in mapping_t struct
+    // TODO: need to change the speed to make sense, whenever the IMU is not moving, it should show that it is stopped
+    // checking for tilt speed and setting type in mapping_t struct
     if (rotational_movement < 10.00){
-        map->speed = STOPPED;
-        // map->pitch_dir = PITCH_DEADZONE;
-        // map->roll_dir = ROLL_DEADZONE;
-        return;   
+        map->tilt_speed = STOPPED;
     }
     else if (rotational_movement < 20.00){
-        map->speed = SLOW;
+        map->tilt_speed = SLOW;
     }
     else if (rotational_movement < 35.00){
-        map->speed = MED;
+        map->tilt_speed = MED;
     }
     else {
-        map->speed = FAST;
+        map->tilt_speed = FAST;
+    }
+
+    // checking the motion
+    if (mag_dist <= 1.05 ){
+        map->motion_speed = STOPPED;
+    }
+    else if (mag_dist > 1.05 && mag_dist <= 1.20){
+        map->motion_speed = SLOW;
+    }
+    else if (mag_dist > 1.20 && mag_dist <= 1.40){
+        map->motion_speed = MED;
+    }
+    else {
+        map->motion_speed = FAST;
     }
 }
 
 // for printing to the terminal
-static void direction_and_speed_to_string(char **pitch_dir, char **roll_dir, char **speed, mapping_t map){
+static void direction_and_speed_to_string(char **pitch_dir, char **roll_dir, char **tilt_speed, char **motion_speed, mapping_t map){
 
     // for writing to dir char**
     if (map.roll_dir == ROLL_DEADZONE){
@@ -151,17 +169,32 @@ static void direction_and_speed_to_string(char **pitch_dir, char **roll_dir, cha
     
     
     // for writing to speed char**
-    if (map.speed == STOPPED){
-        *speed = "Stopped";
+    if (map.tilt_speed == STOPPED){
+        *tilt_speed = "Stopped";
     }
-    else if (map.speed == SLOW){
-        *speed = "Slow";
+    else if (map.tilt_speed == SLOW){
+        *tilt_speed = "Slow";
     }
-    else if (map.speed == MED){
-        *speed = "Medium";
+    else if (map.tilt_speed == MED){
+        *tilt_speed = "Medium";
     }   
     else {
-        *speed = "Fast";
+        *tilt_speed = "Fast";
+    }
+
+
+    // for writing to speed char**
+    if (map.motion_speed == STOPPED){
+        *motion_speed = "Stopped";
+    }
+    else if (map.motion_speed == SLOW){
+        *motion_speed = "Slow";
+    }
+    else if (map.motion_speed == MED){
+        *motion_speed = "Medium";
+    }   
+    else {
+        *motion_speed = "Fast";
     }
 }
 
@@ -183,11 +216,6 @@ esp_err_t imu_i2c_init(int sda_gpio, int scl_gpio, uint32_t clk_hz)
     return i2c_driver_install(I2C_PORT, conf.mode, 0, 0, 0);
 }
 
-// I think I will need this later
-// // function for calculating distance moved based on ax, ay, az, and dt
-// double magnitude_distance(float ax, float ay, float az, float dt){
-//     double a = sqrt((double)((ax*ax) + (ay*ay) + (az*az)));
-// }
 
 
 // main function in ESP32
@@ -265,19 +293,23 @@ void app_main(void) {
                 kalman_update(ax, ay, -az, gx, gy, gz, delta_dt);       // negating az
                 kalman_get_attitude(&roll, &pitch, &yaw);
 
+                // calculating the distance moved
+                double mag_dist = magnitude_distance(ax, ay, az, delta_dt);
+
                 // getting the mapping of roll and pitch
                 mapping_t map = {0};
-                get_direction_and_speed(roll, pitch, &map);
+                get_direction_and_speed(roll, pitch,mag_dist, &map);
 
                 // converting the roll, pitch, and speed to something printable
                 char* pitch_dir;
                 char* roll_dir;
-                char* speed;
-                direction_and_speed_to_string(&pitch_dir, &roll_dir, &speed, map);
+                char* motion_speed;
+                char* tilt_speed;
+                direction_and_speed_to_string(&pitch_dir, &roll_dir, &tilt_speed, &motion_speed, map);
 
                 // printing out filtered values (might be innacurate based on how the board is on the rover)
                 ESP_LOGI(FILTERED_TAG, "PITCH: %f deg | ROLL: %f deg", pitch * (180.0f / M_PI), roll * (180.0f / M_PI));
-                ESP_LOGI(COMMAND_TAG,"PITCH: %s | ROLL: %s | SPEED: %s\n", pitch_dir, roll_dir, speed);
+                ESP_LOGI(COMMAND_TAG,"PITCH: %s | ROLL: %s | TILT_SPEED: %s | MOTION_SPEED: %s\n", pitch_dir, roll_dir, tilt_speed, motion_speed);
             }
         }
         else {
