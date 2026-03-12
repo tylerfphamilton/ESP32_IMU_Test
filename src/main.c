@@ -43,6 +43,14 @@ typedef enum {
     FAST
 } SPEED;
 
+
+typedef enum {
+    NONE,
+    LOW,
+    MODERATE,
+    HIGH
+} TILT_ANGLE;
+
 typedef enum {
     PITCH_DEADZONE,
     FORWARDS,
@@ -56,7 +64,7 @@ typedef enum {
 } ROLL_DIRECTION;
 
 typedef struct {
-    SPEED tilt_speed;
+    TILT_ANGLE tilt;
     SPEED motion_speed;
     PITCH_DIRECTION pitch_dir;
     ROLL_DIRECTION roll_dir;
@@ -116,16 +124,16 @@ static void get_direction_and_speed(float roll, float pitch, double mag_dist, ma
     // TODO: need to change the speed to make sense, whenever the IMU is not moving, it should show that it is stopped
     // checking for tilt speed and setting type in mapping_t struct
     if (rotational_movement < 10.00){
-        map->tilt_speed = STOPPED;
+        map->tilt = NONE;
     }
     else if (rotational_movement < 20.00){
-        map->tilt_speed = SLOW;
+        map->tilt = LOW;
     }
     else if (rotational_movement < 35.00){
-        map->tilt_speed = MED;
+        map->tilt = MODERATE;
     }
     else {
-        map->tilt_speed = FAST;
+        map->tilt = HIGH;
     }
 
     // checking the motion
@@ -169,17 +177,17 @@ static void direction_and_speed_to_string(char **pitch_dir, char **roll_dir, cha
     
     
     // for writing to speed char**
-    if (map.tilt_speed == STOPPED){
-        *tilt_speed = "Stopped";
+    if (map.tilt == NONE){
+        *tilt_speed = "None";
     }
-    else if (map.tilt_speed == SLOW){
-        *tilt_speed = "Slow";
+    else if (map.tilt == LOW){
+        *tilt_speed = "Low";
     }
-    else if (map.tilt_speed == MED){
-        *tilt_speed = "Medium";
+    else if (map.tilt == MODERATE){
+        *tilt_speed = "Moderate";
     }   
     else {
-        *tilt_speed = "Fast";
+        *tilt_speed = "High";
     }
 
 
@@ -304,12 +312,12 @@ void app_main(void) {
                 char* pitch_dir;
                 char* roll_dir;
                 char* motion_speed;
-                char* tilt_speed;
-                direction_and_speed_to_string(&pitch_dir, &roll_dir, &tilt_speed, &motion_speed, map);
+                char* tilt_angle;
+                direction_and_speed_to_string(&pitch_dir, &roll_dir, &tilt_angle, &motion_speed, map);
 
                 // printing out filtered values (might be innacurate based on how the board is on the rover)
                 ESP_LOGI(FILTERED_TAG, "PITCH: %f deg | ROLL: %f deg", pitch * (180.0f / M_PI), roll * (180.0f / M_PI));
-                ESP_LOGI(COMMAND_TAG,"PITCH: %s | ROLL: %s | TILT_SPEED: %s | MOTION_SPEED: %s\n", pitch_dir, roll_dir, tilt_speed, motion_speed);
+                ESP_LOGI(COMMAND_TAG,"PITCH: %s | ROLL: %s | TILT_ANGLE: %s | MOTION_SPEED: %s\n", pitch_dir, roll_dir, tilt_angle, motion_speed);
             }
         }
         else {
